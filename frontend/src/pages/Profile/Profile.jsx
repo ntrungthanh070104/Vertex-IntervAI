@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx'
+import { useLanguage } from '../../i18n/LanguageContext.jsx'
 import { formatFileSize, formatUploadDate } from '../../services/cvStorage.js'
 import { getProfileFromAws, saveProfileToAws } from '../../services/profileApi.js'
 import '../Dashboard/Dashboard.css'
@@ -7,11 +9,11 @@ import './Profile.css'
 const PROFILE_STORAGE_KEY = 'talentGraph.profile'
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'upload-cv', label: 'Upload CV', icon: 'file' },
-  { id: 'interview', label: 'AI Interview', icon: 'mic' },
-  { id: 'result', label: 'Result', icon: 'chart' },
-  { id: 'history', label: 'History', icon: 'history' },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: 'dashboard' },
+  { id: 'upload-cv', labelKey: 'nav.uploadCv', icon: 'file' },
+  { id: 'interview', labelKey: 'nav.aiInterview', icon: 'mic' },
+  { id: 'result', labelKey: 'nav.result', icon: 'chart' },
+  { id: 'history', labelKey: 'nav.history', icon: 'history' },
 ]
 
 const defaultProfile = {
@@ -27,12 +29,6 @@ const defaultProfile = {
   goal: 'Build a strong AI interview platform and prepare for frontend/cloud internship roles.',
 }
 
-const readinessItems = [
-  { label: 'CV uploaded', value: 92, tone: 'purple' },
-  { label: 'Profile completeness', value: 86, tone: 'blue' },
-  { label: 'Interview readiness', value: 78, tone: 'green' },
-]
-
 const fallbackUser = {
   userId: 'user_demo_001',
   fullName: 'Nguyen Huy Dat',
@@ -47,10 +43,17 @@ export default function Profile({
   onNavigate = () => {},
   onLogout = () => {},
 }) {
+  const { t } = useLanguage()
+  const readinessItems = useMemo(() => [
+    { label: t('profile.cvUploaded'), value: 92, tone: 'purple' },
+    { label: t('profile.profileCompleteness'), value: 86, tone: 'blue' },
+    { label: t('profile.interviewReadiness'), value: 78, tone: 'green' },
+  ], [t])
+
   const [profile, setProfile] = useState(() => loadProfile(currentUser))
   const [isEditing, setIsEditing] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [syncStatus, setSyncStatus] = useState('Local profile')
+  const [syncStatus, setSyncStatus] = useState(t('profile.syncLocal'))
   const analysis = cvAnalysis ?? null
 
   useEffect(() => {
@@ -63,10 +66,10 @@ export default function Profile({
         if (!isMounted) return
 
         setProfile((current) => ({ ...current, ...awsProfile }))
-        setSyncStatus('Synced from AWS')
+        setSyncStatus(t('profile.syncAws'))
       } catch {
         if (isMounted) {
-          setSyncStatus('Saved locally')
+          setSyncStatus(t('profile.syncSavedLocal'))
         }
       }
     }
@@ -76,7 +79,7 @@ export default function Profile({
     return () => {
       isMounted = false
     }
-  }, [currentUser.userId])
+  }, [currentUser.userId, t])
 
   const topSkills = useMemo(() => {
     const fromAnalysis = analysis?.skills?.slice(0, 8)
@@ -94,9 +97,9 @@ export default function Profile({
     try {
       const savedProfile = await saveProfileToAws(profile, currentUser.userId)
       setProfile((current) => ({ ...current, ...savedProfile }))
-      setSyncStatus('Saved to AWS')
+      setSyncStatus(t('profile.syncSavedAws'))
     } catch {
-      setSyncStatus('Saved locally')
+      setSyncStatus(t('profile.syncSavedLocal'))
     } finally {
       setIsEditing(false)
       setSaved(true)
@@ -106,7 +109,7 @@ export default function Profile({
   return (
     <div className="dashboard-page profile-page">
       <div className="dashboard-frame">
-        <ProfileSidebar currentPage="profile" onNavigate={onNavigate} onLogout={onLogout} />
+        <ProfileSidebar currentPage="profile" onNavigate={onNavigate} onLogout={onLogout} t={t} />
 
         <main className="dashboard-main">
           <header className="topbar">
@@ -114,25 +117,26 @@ export default function Profile({
               <button
                 className="icon-button"
                 type="button"
-                aria-label="Back to dashboard"
-                title="Back to dashboard"
+                aria-label={t('upload.backToDashboard')}
+                title={t('upload.backToDashboard')}
                 onClick={() => onNavigate('dashboard')}
               >
                 <Icon name="arrowLeft" />
               </button>
               <div>
-                <p>Profile</p>
-                <h2>Candidate Profile</h2>
+                <p>{t('profile.pageTitle')}</p>
+                <h2>{t('profile.pageSubtitle')}</h2>
               </div>
             </div>
 
             <div className="topbar-actions">
-              <button className="icon-button" type="button" aria-label="Notifications" title="Notifications">
+              <LanguageSwitcher compact />
+              <button className="icon-button" type="button" aria-label={t('common.notifications')} title={t('common.notifications')}>
                 <Icon name="bell" />
               </button>
-              <div className="user-chip" aria-label="Current user">
+              <div className="user-chip" aria-label={t('profile.pageSubtitle')}>
                 <span>{currentUser.fullName}</span>
-                <small>{currentUser.role}</small>
+                <small>{currentUser.role === 'admin' ? t('common.admin') : t('common.user')}</small>
                 <div className="avatar">{currentUser.initials}</div>
               </div>
             </div>
@@ -143,41 +147,41 @@ export default function Profile({
               <div className="profile-identity">
                 <div className="profile-avatar">{currentUser.initials}</div>
                 <div>
-                  <p className="eyebrow">Candidate Identity</p>
+                  <p className="eyebrow">{t('profile.candidateIdentity')}</p>
                   <h1>{profile.fullName}</h1>
                   <span>{profile.headline}</span>
                 </div>
               </div>
 
               <div className="profile-actions">
-                {saved ? <span className="save-status">Saved</span> : null}
+                {saved ? <span className="save-status">{t('profile.saved')}</span> : null}
                 <span className="sync-status">{syncStatus}</span>
                 <button className="secondary-upload-action" type="button" onClick={() => setIsEditing((value) => !value)}>
                   <Icon name="edit" />
-                  {isEditing ? 'Cancel' : 'Edit Profile'}
+                  {isEditing ? t('common.cancel') : t('profile.editProfile')}
                 </button>
                 <button className="primary-upload-action" type="button" onClick={handleSave}>
                   <Icon name="save" />
-                  Save
+                  {t('common.save')}
                 </button>
               </div>
             </section>
 
             <section className="profile-grid">
               <div className="panel profile-form-panel">
-                <PanelHeader title="Personal Information" description="Used for CV matching and interview context." />
+                <PanelHeader title={t('profile.personalInfo')} description={t('profile.personalInfoDesc')} />
                 <div className="profile-form-grid">
-                  <ProfileField label="Full name" value={profile.fullName} editing={isEditing} onChange={(value) => updateField('fullName', value)} />
-                  <ProfileField label="Headline" value={profile.headline} editing={isEditing} onChange={(value) => updateField('headline', value)} />
-                  <ProfileField label="Email" value={profile.email} editing={isEditing} onChange={(value) => updateField('email', value)} />
-                  <ProfileField label="Phone" value={profile.phone} editing={isEditing} onChange={(value) => updateField('phone', value)} />
-                  <ProfileField label="Location" value={profile.location} editing={isEditing} onChange={(value) => updateField('location', value)} />
-                  <ProfileField label="Education" value={profile.university} editing={isEditing} onChange={(value) => updateField('university', value)} />
+                  <ProfileField label={t('profile.fullName')} value={profile.fullName} editing={isEditing} onChange={(value) => updateField('fullName', value)} />
+                  <ProfileField label={t('profile.headline')} value={profile.headline} editing={isEditing} onChange={(value) => updateField('headline', value)} />
+                  <ProfileField label={t('common.email')} value={profile.email} editing={isEditing} onChange={(value) => updateField('email', value)} />
+                  <ProfileField label={t('profile.phone')} value={profile.phone} editing={isEditing} onChange={(value) => updateField('phone', value)} />
+                  <ProfileField label={t('profile.location')} value={profile.location} editing={isEditing} onChange={(value) => updateField('location', value)} />
+                  <ProfileField label={t('profile.education')} value={profile.university} editing={isEditing} onChange={(value) => updateField('university', value)} />
                 </div>
               </div>
 
               <aside className="panel readiness-panel">
-                <PanelHeader title="Readiness" description="Overview for the next interview round." />
+                <PanelHeader title={t('profile.readiness')} description={t('profile.readinessDesc')} />
                 <div className="readiness-list">
                   {readinessItems.map((item) => (
                     <ReadinessBar key={item.label} {...item} />
@@ -186,7 +190,7 @@ export default function Profile({
               </aside>
 
               <div className="panel profile-goal-panel">
-                <PanelHeader title="Career Goal" description="Shown as context for AI-generated questions." />
+                <PanelHeader title={t('profile.careerGoal')} description={t('profile.careerGoalDesc')} />
                 {isEditing ? (
                   <textarea
                     className="profile-textarea"
@@ -200,26 +204,26 @@ export default function Profile({
               </div>
 
               <aside className="panel cv-summary-panel">
-                <PanelHeader title="Latest CV" description={analysis ? 'Connected from UploadCV' : 'Upload a CV to replace demo data.'} />
+                <PanelHeader title={t('profile.latestCv')} description={analysis ? t('profile.latestCvConnected') : t('profile.latestCvEmpty')} />
                 <div className="profile-cv-card">
                   <div className="file-icon"><Icon name="file" /></div>
                   <div>
-                    <strong>{analysis?.fileName ?? 'No uploaded CV yet'}</strong>
+                    <strong>{analysis?.fileName ?? t('profile.noCvYet')}</strong>
                     <span>
                       {analysis
                         ? `${formatUploadDate(analysis.uploadedAt)} / ${formatFileSize(analysis.fileSize)}`
-                        : 'Upload a CV to unlock AI score'}
+                        : t('profile.uploadToUnlock')}
                     </span>
                   </div>
                 </div>
                 <div className="profile-score">
                   <strong>{analysis?.cvScore ?? 0}</strong>
-                  <span>CV Score</span>
+                  <span>{t('profile.cvScore')}</span>
                 </div>
               </aside>
 
               <div className="panel skills-panel">
-                <PanelHeader title="Technical Skills" description="Pulled from CV analysis when available." />
+                <PanelHeader title={t('profile.technicalSkills')} description={t('profile.technicalSkillsDesc')} />
                 <div className="tag-list profile-tags">
                   {topSkills.map((skill) => (
                     <span key={skill}>{skill}</span>
@@ -228,11 +232,11 @@ export default function Profile({
               </div>
 
               <aside className="panel links-panel">
-                <PanelHeader title="Candidate Links" description="Useful for recruiter review." />
+                <PanelHeader title={t('profile.candidateLinks')} description={t('profile.candidateLinksDesc')} />
                 <div className="link-list">
-                  <LinkField icon="github" label="GitHub" value={profile.github} editing={isEditing} onChange={(value) => updateField('github', value)} />
-                  <LinkField icon="linkedin" label="LinkedIn" value={profile.linkedin} editing={isEditing} onChange={(value) => updateField('linkedin', value)} />
-                  <LinkField icon="globe" label="Portfolio" value={profile.portfolio} editing={isEditing} onChange={(value) => updateField('portfolio', value)} />
+                  <LinkField icon="github" label={t('profile.github')} value={profile.github} editing={isEditing} onChange={(value) => updateField('github', value)} />
+                  <LinkField icon="linkedin" label={t('profile.linkedin')} value={profile.linkedin} editing={isEditing} onChange={(value) => updateField('linkedin', value)} />
+                  <LinkField icon="globe" label={t('profile.portfolio')} value={profile.portfolio} editing={isEditing} onChange={(value) => updateField('portfolio', value)} />
                 </div>
               </aside>
             </section>
@@ -266,19 +270,19 @@ function loadProfile(currentUser) {
   }
 }
 
-function ProfileSidebar({ currentPage, onNavigate, onLogout }) {
+function ProfileSidebar({ currentPage, onNavigate, onLogout, t }) {
   return (
-    <aside className="sidebar" aria-label="Main navigation">
+    <aside className="sidebar" aria-label={t('common.mainMenu')}>
       <div className="brand">
         <div className="brand-mark"><Icon name="brain" /></div>
         <div>
           <strong>Vertex-IntervAI</strong>
-          <span>InterviewAI</span>
+          <span>{t('common.brandSubtitleAlt')}</span>
         </div>
       </div>
 
       <nav className="nav-menu">
-        <span className="nav-caption">Main Menu</span>
+        <span className="nav-caption">{t('common.mainMenu')}</span>
         {navItems.map((item) => (
           <button
             className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
@@ -287,24 +291,24 @@ function ProfileSidebar({ currentPage, onNavigate, onLogout }) {
             onClick={() => onNavigate(item.id)}
           >
             <Icon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </button>
         ))}
 
-        <span className="nav-caption nav-caption-spaced">General</span>
+        <span className="nav-caption nav-caption-spaced">{t('common.general')}</span>
         <button className="nav-item active" type="button" onClick={() => onNavigate('profile')}>
           <Icon name="user" />
-          <span>Profile</span>
+          <span>{t('nav.profile')}</span>
         </button>
         <button className="nav-item" type="button">
           <Icon name="settings" />
-          <span>Settings</span>
+          <span>{t('nav.settings')}</span>
         </button>
       </nav>
 
       <button className="logout-button" type="button" onClick={onLogout}>
         <Icon name="logout" />
-        Log Out
+        {t('common.logOut')}
       </button>
     </aside>
   )

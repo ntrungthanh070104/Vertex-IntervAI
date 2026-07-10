@@ -3,11 +3,11 @@ const DEFAULT_INTERVIEW_API_BASE_URL =
 
 const INTERVIEW_API_BASE_URL = import.meta.env.VITE_INTERVIEW_API_BASE_URL || DEFAULT_INTERVIEW_API_BASE_URL
 
-export async function createInterviewOnAws({ cvAnalysis, currentUser }) {
+export async function createInterviewOnAws({ cvAnalysis, currentUser, preferredRole }) {
   const response = await callInterviewApi('/interviews', {
     userId: currentUser.userId,
     cvId: cvAnalysis?.cvId || 'cv_demo_001',
-    role: cvAnalysis?.suggestedPosition || 'Software Developer Intern',
+    role: preferredRole || cvAnalysis?.suggestedPosition || 'Software Developer Intern',
     skills: cvAnalysis?.skills || ['React', 'Python', 'AWS'],
     projects: cvAnalysis?.projects || ['Talent Graph AI'],
   })

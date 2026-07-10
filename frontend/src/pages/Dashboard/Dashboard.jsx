@@ -1,58 +1,73 @@
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx'
+import { useLanguage } from '../../i18n/LanguageContext.jsx'
 import { formatFileSize, formatUploadDate } from '../../services/cvStorage.js'
-import { formatInterviewDate } from '../../services/interviewStorage.js'
+import { formatInterviewDate, loadInterviewHistory } from '../../services/interviewStorage.js'
+import { getPreferredInterviewRole } from '../../services/userPreferences.js'
 import './Dashboard.css'
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'upload-cv', label: 'Upload CV', icon: 'file' },
-  { id: 'interview', label: 'AI Interview', icon: 'mic' },
-  { id: 'result', label: 'Result', icon: 'chart' },
-  { id: 'history', label: 'History', icon: 'history' },
-  { id: 'profile', label: 'Profile', icon: 'user' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: 'dashboard' },
+  { id: 'upload-cv', labelKey: 'nav.uploadCv', icon: 'file' },
+  { id: 'interview', labelKey: 'nav.aiInterview', icon: 'mic' },
+  { id: 'result', labelKey: 'nav.result', icon: 'chart' },
+  { id: 'history', labelKey: 'nav.history', icon: 'history' },
+  { id: 'profile', labelKey: 'nav.profile', icon: 'user' },
+  { id: 'settings', labelKey: 'nav.settings', icon: 'settings' },
 ]
 
-const fallbackCvAnalysis = {
-  fileName: 'Nguyen-Huy-Dat-CV.pdf',
-  fileSize: 428000,
-  uploadedAt: '2026-07-03T00:00:00.000Z',
-  cvScore: 92,
-  suggestedPosition: 'Frontend Developer Intern',
-  recommendation:
-    'You show strong frontend fundamentals. Improve AWS Lambda error handling, DynamoDB query design, and concise system design answers before your next technical interview.',
-  skills: ['React', 'Python', 'AWS Lambda', 'DynamoDB'],
-  talentScores: [
-    { label: 'React', score: 88 },
-    { label: 'Python', score: 76 },
-    { label: 'AWS', score: 72 },
-    { label: 'Database', score: 68 },
-    { label: 'Communication', score: 82 },
-    { label: 'Problem Solving', score: 79 },
-  ],
-  skillGroups: [
-    { label: 'Frontend', value: 88, skills: 'React, Vite, Tailwind', tone: 'purple' },
-    { label: 'Backend', value: 76, skills: 'Python, Lambda APIs', tone: 'blue' },
-    { label: 'Cloud', value: 72, skills: 'S3, Bedrock, DynamoDB', tone: 'orange' },
-    { label: 'Communication', value: 82, skills: 'Clear answers, steady flow', tone: 'green' },
-  ],
+function buildFallbackCvAnalysis(t) {
+  return {
+    fileName: 'Nguyen-Huy-Dat-CV.pdf',
+    fileSize: 428000,
+    uploadedAt: '2026-07-03T00:00:00.000Z',
+    cvScore: 92,
+    suggestedPosition: t('dashboard.fallbackRole'),
+    recommendation: t('dashboard.fallbackRecommendation'),
+    skills: ['React', 'Python', 'AWS Lambda', 'DynamoDB'],
+    talentScores: [
+      { label: 'React', score: 88 },
+      { label: 'Python', score: 76 },
+      { label: 'AWS', score: 72 },
+      { label: 'Database', score: 68 },
+      { label: 'Communication', score: 82 },
+      { label: 'Problem Solving', score: 79 },
+    ],
+    skillGroups: [
+      { label: t('dashboard.fallbackSkillFrontend'), value: 88, skills: 'React, Vite, Tailwind', tone: 'purple' },
+      { label: t('dashboard.fallbackSkillBackend'), value: 76, skills: 'Python, Lambda APIs', tone: 'blue' },
+      { label: t('dashboard.fallbackSkillCloud'), value: 72, skills: 'S3, Bedrock, DynamoDB', tone: 'orange' },
+      { label: t('dashboard.fallbackSkillCommunication'), value: 82, skills: 'Clear answers, steady flow', tone: 'green' },
+    ],
+  }
 }
 
-const interviews = [
-  { role: 'Frontend Developer', date: 'Jul 03, 2026', score: 78, status: 'Completed' },
-  { role: 'Backend Python', date: 'Jun 28, 2026', score: 84, status: 'Completed' },
-  { role: 'Cloud Engineer', date: 'Jun 21, 2026', score: 73, status: 'Review' },
-]
+function buildFallbackInterviews(t) {
+  return [
+    { role: t('dashboard.fallbackInterviewFrontend'), date: 'Jul 03, 2026', score: 78, status: 'Completed' },
+    { role: t('dashboard.fallbackInterviewBackend'), date: 'Jun 28, 2026', score: 84, status: 'Completed' },
+    { role: t('dashboard.fallbackInterviewCloud'), date: 'Jun 21, 2026', score: 73, status: 'Review' },
+  ]
+}
 
 const actions = [
-  { label: 'Upload CV', icon: 'upload', tone: 'purple', page: 'upload-cv' },
-  { label: 'Start Interview', icon: 'play', tone: 'green', page: 'interview' },
-  { label: 'View Result', icon: 'chart', tone: 'blue', page: 'result' },
+  { labelKey: 'dashboard.uploadCv', icon: 'upload', tone: 'purple', page: 'upload-cv' },
+  { labelKey: 'dashboard.startInterview', icon: 'play', tone: 'green', page: 'interview' },
+  { labelKey: 'dashboard.viewResult', icon: 'chart', tone: 'blue', page: 'result' },
 ]
 
 const fallbackUser = {
   fullName: 'Nguyen Huy Dat',
   initials: 'HD',
   role: 'user',
+}
+
+function translateStatus(status, t) {
+  const map = {
+    Completed: t('status.completed'),
+    Review: t('status.review'),
+  }
+
+  return map[status] ?? status
 }
 
 export default function Dashboard({
@@ -62,68 +77,73 @@ export default function Dashboard({
   onNavigate = () => {},
   onLogout = () => {},
 }) {
+  const { t } = useLanguage()
   const hasUploadedCv = Boolean(cvAnalysis)
-  const analysis = cvAnalysis ?? fallbackCvAnalysis
-  const latestInterviewScore = interviewResult?.overallScore ?? 78
-  const averageScore = interviewResult ? Math.round((analysis.cvScore + latestInterviewScore) / 2) : 81
-  const interviewRows = interviewResult
-    ? [
-      {
+  const analysis = cvAnalysis ?? buildFallbackCvAnalysis(t)
+  const roleLabel = analysis?.suggestedPosition || getPreferredInterviewRole(currentUser?.userId, t('dashboard.fallbackRole'))
+  const latestInterviewScore = interviewResult?.overallScore ?? 0
+  const averageScore = interviewResult && analysis?.cvScore
+    ? Math.round((analysis.cvScore + latestInterviewScore) / 2)
+    : (analysis?.cvScore ? Math.round(analysis.cvScore * 0.9) : 81)
+  const historyRows = loadInterviewHistory(currentUser?.userId)
+  const interviewRows = historyRows.length
+    ? historyRows.slice(0, 3).map((item) => ({
+      role: item.role,
+      date: formatInterviewDate(item.completedAt),
+      score: item.overallScore,
+      status: item.status,
+    }))
+    : (interviewResult
+      ? [{
         role: interviewResult.role,
         date: formatInterviewDate(interviewResult.completedAt),
         score: interviewResult.overallScore,
         status: interviewResult.status,
-      },
-      ...interviews.slice(0, 2),
-    ]
-    : interviews
-  const firstName = currentUser.fullName?.split(' ')[0] ?? 'Candidate'
+      }]
+      : buildFallbackInterviews(t))
+  const firstName = currentUser.fullName?.split(' ')[0] ?? t('dashboard.candidate')
   const stats = [
-    { label: 'CV Score', value: String(analysis.cvScore), suffix: '/100', icon: 'file', tone: 'purple' },
-    { label: 'Latest Interview', value: String(latestInterviewScore), suffix: '/100', icon: 'mic', tone: 'green' },
-    { label: 'Completed Interviews', value: interviewResult ? '1' : '12', suffix: '', icon: 'check', tone: 'orange' },
-    { label: 'Average Score', value: String(averageScore), suffix: '/100', icon: 'chart', tone: 'blue' },
+    { label: t('dashboard.cvScore'), value: String(analysis.cvScore), suffix: '/100', icon: 'file', tone: 'purple' },
+    { label: t('dashboard.latestInterview'), value: String(latestInterviewScore), suffix: '/100', icon: 'mic', tone: 'green' },
+    { label: t('dashboard.completedInterviews'), value: interviewResult ? '1' : '12', suffix: '', icon: 'check', tone: 'orange' },
+    { label: t('dashboard.averageScore'), value: String(averageScore), suffix: '/100', icon: 'chart', tone: 'blue' },
   ]
 
   return (
     <div className="dashboard-page">
       <div className="dashboard-frame">
-        <Sidebar currentPage="dashboard" onNavigate={onNavigate} onLogout={onLogout} />
+        <Sidebar currentPage="dashboard" onNavigate={onNavigate} onLogout={onLogout} t={t} />
 
         <main className="dashboard-main">
-          <Topbar currentUser={currentUser} />
+          <Topbar currentUser={currentUser} t={t} />
 
           <div className="dashboard-content">
-            <section className="hero-panel" aria-label="Dashboard overview">
+            <section className="hero-panel" aria-label={t('dashboard.pageTitle')}>
               <div className="hero-copy">
-                <p className="eyebrow">AI Technical Interview Platform</p>
-                <h1>Welcome back, {firstName}</h1>
-                <p>
-                  {hasUploadedCv
-                    ? 'Your uploaded CV is ready for interview generation. Start a focused AI mock interview or review the latest skill assessment.'
-                    : 'Upload your CV to generate interview questions, skill analysis, and a personalized Talent Graph.'}
-                </p>
+                <p className="eyebrow">{t('dashboard.eyebrow')}</p>
+                <h1>{t('dashboard.welcome', { name: firstName })}</h1>
+                <p>{hasUploadedCv ? `${t('dashboard.hasCv')} • ${roleLabel}` : t('dashboard.noCv')}</p>
                 <div className="hero-actions">
                   <button className="primary-action" type="button" onClick={() => onNavigate('interview')}>
                     <Icon name="play" />
-                    Start Interview
+                    {t('dashboard.startInterview')}
                   </button>
                   <button className="secondary-action" type="button" onClick={() => onNavigate('upload-cv')}>
                     <Icon name="upload" />
-                    Upload New CV
+                    {t('dashboard.uploadNewCv')}
                   </button>
                 </div>
               </div>
 
-              <div className="workflow-strip" aria-label="Interview workflow status">
-                <WorkflowStep icon="file" label="CV Parsed" status={hasUploadedCv ? 'Done' : 'Demo'} active />
-                <WorkflowStep icon="brain" label="Questions" status="Ready" active={hasUploadedCv} />
-                <WorkflowStep icon="mic" label="Voice Round" status={interviewResult ? 'Done' : 'Next'} active={Boolean(interviewResult)} />
-                <WorkflowStep icon="chart" label="Talent Graph" status={interviewResult ? 'Updated' : 'After'} active={Boolean(interviewResult)} />
+              <div className="workflow-strip" aria-label={t('dashboard.pageSubtitle')}>
+                <WorkflowStep icon="file" label={t('dashboard.cvParsed')} status={hasUploadedCv ? t('status.done') : t('status.demo')} active />
+                <WorkflowStep icon="brain" label={t('dashboard.questions')} status={t('status.ready')} active={hasUploadedCv} />
+                <WorkflowStep icon="mic" label={t('dashboard.voiceRound')} status={interviewResult ? t('status.done') : t('status.next')} active={Boolean(interviewResult)} />
+                <WorkflowStep icon="chart" label={t('dashboard.talentGraph')} status={interviewResult ? t('status.updated') : t('status.after')} active={Boolean(interviewResult)} />
               </div>
             </section>
 
-            <section className="stats-grid" aria-label="Key dashboard metrics">
+            <section className="stats-grid" aria-label={t('dashboard.pageTitle')}>
               {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />
               ))}
@@ -132,11 +152,11 @@ export default function Dashboard({
             <div className="dashboard-grid">
               <section className="panel talent-panel">
                 <PanelHeader
-                  title="Talent Graph"
-                  description="Skill assessment based on CV analysis and recent interviews."
+                  title={t('dashboard.talentGraphTitle')}
+                  description={t('dashboard.talentGraphDesc')}
                 />
                 <div className="talent-layout">
-                  <RadarChart data={analysis.talentScores} />
+                  <RadarChart data={analysis.talentScores} title={t('dashboard.radarTitle')} />
                   <div className="skill-breakdown">
                     {analysis.skillGroups.map((group) => (
                       <SkillBar key={group.label} {...group} />
@@ -147,17 +167,17 @@ export default function Dashboard({
 
               <aside className="right-rail">
                 <section className="panel score-panel">
-                  <PanelHeader title="Assessment Score" description="Latest AI evaluation" />
+                  <PanelHeader title={t('dashboard.assessmentScore')} description={t('dashboard.assessmentScoreDesc')} />
                   <div className="score-rings">
-                    <ScoreRing label="CV" value={analysis.cvScore} color="#7c3aed" />
-                    <ScoreRing label="Interview" value={latestInterviewScore} color="#10b981" />
+                    <ScoreRing label={t('dashboard.cvScore')} value={analysis.cvScore} color="#7c3aed" />
+                    <ScoreRing label={t('dashboard.interviewLabel')} value={latestInterviewScore} color="#10b981" />
                   </div>
                 </section>
 
                 <section className="panel cv-panel">
                   <PanelHeader
-                    title="CV Status"
-                    description={hasUploadedCv ? 'Last uploaded CV' : 'Demo data shown until upload'}
+                    title={t('dashboard.cvStatus')}
+                    description={hasUploadedCv ? t('dashboard.cvStatusUploaded') : t('dashboard.cvStatusDemo')}
                   />
                   <div className="cv-file">
                     <div className="file-icon"><Icon name="file" /></div>
@@ -168,7 +188,7 @@ export default function Dashboard({
                       </span>
                     </div>
                   </div>
-                  <div className="tag-list" aria-label="Extracted skills">
+                  <div className="tag-list" aria-label={t('upload.extractedSkills')}>
                     {analysis.skills.slice(0, 6).map((skill) => (
                       <span key={skill}>{skill}</span>
                     ))}
@@ -177,23 +197,24 @@ export default function Dashboard({
               </aside>
 
               <section className="panel recommendation-panel">
-                <PanelHeader title="AI Recommendation" description="Suggested focus before the next round" />
+                <PanelHeader title={t('dashboard.aiRecommendation')} description={t('dashboard.aiRecommendationDesc')} />
                 <p>{analysis.recommendation}</p>
+                <p className="role-hint">{t('upload.suggestedRole')}: {roleLabel}</p>
                 <div className="focus-list">
-                  <span>Lambda API patterns</span>
-                  <span>DynamoDB indexes</span>
-                  <span>Behavioral answer structure</span>
+                  <span>{t('dashboard.focusLambda')}</span>
+                  <span>{t('dashboard.focusDynamo')}</span>
+                  <span>{t('dashboard.focusBehavioral')}</span>
                 </div>
               </section>
 
               <section className="panel history-panel">
-                <PanelHeader title="Recent Interviews" description="Latest completed mock interviews" />
-                <div className="interview-table" role="table" aria-label="Recent interviews">
+                <PanelHeader title={t('dashboard.recentInterviews')} description={t('dashboard.recentInterviewsDesc')} />
+                <div className="interview-table" role="table" aria-label={t('dashboard.recentInterviews')}>
                   <div className="table-row table-head" role="row">
-                    <span role="columnheader">Position</span>
-                    <span role="columnheader">Date</span>
-                    <span role="columnheader">Score</span>
-                    <span role="columnheader">Status</span>
+                    <span role="columnheader">{t('dashboard.position')}</span>
+                    <span role="columnheader">{t('dashboard.date')}</span>
+                    <span role="columnheader">{t('dashboard.scoreCol')}</span>
+                    <span role="columnheader">{t('dashboard.status')}</span>
                   </div>
                   {interviewRows.map((interview) => (
                     <div className="table-row" role="row" key={`${interview.role}-${interview.date}`}>
@@ -202,7 +223,7 @@ export default function Dashboard({
                       <span role="cell">{interview.score}/100</span>
                       <span role="cell">
                         <span className={`status-pill ${interview.status.toLowerCase()}`}>
-                          {interview.status}
+                          {translateStatus(interview.status, t)}
                         </span>
                       </span>
                     </div>
@@ -211,17 +232,17 @@ export default function Dashboard({
               </section>
 
               <section className="panel quick-panel">
-                <PanelHeader title="Quick Actions" description="Continue the main workflow" />
+                <PanelHeader title={t('dashboard.quickActions')} description={t('dashboard.quickActionsDesc')} />
                 <div className="action-list">
                   {actions.map((action) => (
                     <button
                       className={`action-button ${action.tone}`}
                       type="button"
-                      key={action.label}
+                      key={action.labelKey}
                       onClick={() => onNavigate(action.page)}
                     >
                       <Icon name={action.icon} />
-                      <span>{action.label}</span>
+                      <span>{t(action.labelKey)}</span>
                     </button>
                   ))}
                 </div>
@@ -234,19 +255,19 @@ export default function Dashboard({
   )
 }
 
-function Sidebar({ currentPage, onNavigate, onLogout }) {
+function Sidebar({ currentPage, onNavigate, onLogout, t }) {
   return (
-    <aside className="sidebar" aria-label="Main navigation">
+    <aside className="sidebar" aria-label={t('common.mainMenu')}>
       <div className="brand">
         <div className="brand-mark"><Icon name="brain" /></div>
         <div>
           <strong>Vertex-IntervAI</strong>
-          <span>InterviewAI</span>
+          <span>{t('common.brandSubtitleAlt')}</span>
         </div>
       </div>
 
       <nav className="nav-menu">
-        <span className="nav-caption">Main Menu</span>
+        <span className="nav-caption">{t('common.mainMenu')}</span>
         {navItems.slice(0, 5).map((item) => (
           <button
             className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
@@ -255,11 +276,11 @@ function Sidebar({ currentPage, onNavigate, onLogout }) {
             onClick={() => onNavigate(item.id)}
           >
             <Icon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </button>
         ))}
 
-        <span className="nav-caption nav-caption-spaced">General</span>
+        <span className="nav-caption nav-caption-spaced">{t('common.general')}</span>
         {navItems.slice(5).map((item) => (
           <button
             className="nav-item"
@@ -268,39 +289,40 @@ function Sidebar({ currentPage, onNavigate, onLogout }) {
             onClick={() => onNavigate(item.id)}
           >
             <Icon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </button>
         ))}
       </nav>
 
       <button className="logout-button" type="button" onClick={onLogout}>
         <Icon name="logout" />
-        Log Out
+        {t('common.logOut')}
       </button>
     </aside>
   )
 }
 
-function Topbar({ currentUser }) {
+function Topbar({ currentUser, t }) {
   return (
     <header className="topbar">
       <div className="topbar-title">
-        <button className="icon-button" type="button" aria-label="Go back" title="Go back">
+        <button className="icon-button" type="button" aria-label={t('common.goBack')} title={t('common.goBack')}>
           <Icon name="arrowLeft" />
         </button>
         <div>
-          <p>Dashboard</p>
-          <h2>Candidate Skill Assessment</h2>
+          <p>{t('dashboard.pageTitle')}</p>
+          <h2>{t('dashboard.pageSubtitle')}</h2>
         </div>
       </div>
 
       <div className="topbar-actions">
-        <button className="icon-button" type="button" aria-label="Notifications" title="Notifications">
+        <LanguageSwitcher compact />
+        <button className="icon-button" type="button" aria-label={t('common.notifications')} title={t('common.notifications')}>
           <Icon name="bell" />
         </button>
-        <div className="user-chip" aria-label="Current user">
+        <div className="user-chip" aria-label={t('profile.pageSubtitle')}>
           <span>{currentUser.fullName}</span>
-          <small>{currentUser.role}</small>
+          <small>{currentUser.role === 'admin' ? t('common.admin') : t('common.user')}</small>
           <div className="avatar">{currentUser.initials}</div>
         </div>
       </div>
@@ -364,7 +386,7 @@ function ScoreRing({ label, value, color }) {
       <div
         className="score-ring"
         style={{ '--score': `${value}%`, '--ring-color': color }}
-        aria-label={`${label} score ${value} out of 100`}
+        aria-label={`${label} ${value}/100`}
       >
         <strong>{value}%</strong>
       </div>
@@ -373,7 +395,7 @@ function ScoreRing({ label, value, color }) {
   )
 }
 
-function RadarChart({ data }) {
+function RadarChart({ data, title }) {
   const center = 120
   const radius = 76
   const angleStep = (Math.PI * 2) / data.length
@@ -403,9 +425,9 @@ function RadarChart({ data }) {
   )
 
   return (
-    <div className="radar-wrap" aria-label="Talent graph radar chart">
+    <div className="radar-wrap" aria-label={title}>
       <svg viewBox="0 0 240 240" role="img">
-        <title>Talent Graph scores</title>
+        <title>{title}</title>
         {gridPolygons.map((points) => (
           <polygon className="radar-grid" points={points} key={points} />
         ))}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx'
+import { useLanguage } from '../../i18n/LanguageContext.jsx'
 import {
   askMockAi,
   createInitialMessages,
@@ -10,6 +12,7 @@ import {
 } from '../../services/interviewService.js'
 import { createInterviewOnAws, submitAnswerToAws } from '../../services/interviewApi.js'
 import { createInterviewResult, saveInterviewResult } from '../../services/interviewStorage.js'
+import { setPreferredInterviewRole } from '../../services/userPreferences.js'
 import './Interview.css'
 
 const navItems = [
@@ -41,13 +44,14 @@ export default function Interview({
   onLogout = () => {},
   onInterviewComplete = () => {},
 }) {
+  const { t } = useLanguage()
   const videoRef = useRef(null)
   const cameraStreamRef = useRef(null)
   const recorderRef = useRef(null)
   const audioStreamRef = useRef(null)
   const chunksRef = useRef([])
 
-  const [session, setSession] = useState(() => createInterviewSession(cvAnalysis))
+  const [session, setSession] = useState(() => createInterviewSession(cvAnalysis, currentUser))
   const [messages, setMessages] = useState(() => createInitialMessages(session, currentUser))
   const [questionIndex, setQuestionIndex] = useState(0)
   const [draft, setDraft] = useState('')
@@ -61,9 +65,14 @@ export default function Interview({
   const [isCompleted, setIsCompleted] = useState(false)
   const [interviewSource, setInterviewSource] = useState('Mock AI')
   const [apiStatus, setApiStatus] = useState('Connecting to AWS interview API...')
+  const [preferredRole, setPreferredRole] = useState(cvAnalysis?.suggestedPosition || 'Frontend Developer Intern')
 
   const currentQuestion = session.questions[questionIndex] ?? session.questions[0]
   const progress = Math.round(((questionIndex + 1) / session.questions.length) * 100)
+
+  useEffect(() => {
+    setPreferredRole(cvAnalysis?.suggestedPosition || 'Frontend Developer Intern')
+  }, [cvAnalysis?.suggestedPosition])
 
   useEffect(() => {
     return () => {
@@ -78,7 +87,7 @@ export default function Interview({
 
     async function loadAwsInterview() {
       try {
-        const awsSession = await createInterviewOnAws({ cvAnalysis, currentUser })
+        const awsSession = await createInterviewOnAws({ cvAnalysis, currentUser, preferredRole })
 
         if (!isMounted || !awsSession.questions.length) {
           return
@@ -107,13 +116,13 @@ export default function Interview({
     }
   }, [cvAnalysis, currentUser])
 
-  async function resetInterview(nextSession = createInterviewSession(cvAnalysis)) {
+  async function resetInterview(nextSession = createInterviewSession(cvAnalysis, currentUser, preferredRole)) {
     stopSpeaking()
     stopRecording()
     setApiStatus('Creating a new interview session...')
 
     try {
-      const awsSession = await createInterviewOnAws({ cvAnalysis, currentUser })
+      const awsSession = await createInterviewOnAws({ cvAnalysis, currentUser, preferredRole })
       setSession(awsSession)
       setMessages(createInitialMessages(awsSession, currentUser))
       setInterviewSource('AWS')
@@ -312,7 +321,7 @@ export default function Interview({
     setAnswerReviews(acceptedReviews)
 
     if (completedResult) {
-      saveInterviewResult(completedResult)
+      saveInterviewResult(completedResult, currentUser.userId)
       setInterviewResult(completedResult)
       setIsCompleted(true)
       onInterviewComplete(completedResult)
@@ -345,25 +354,26 @@ export default function Interview({
               <button
                 className="icon-button"
                 type="button"
-                aria-label="Back to dashboard"
-                title="Back to dashboard"
+                aria-label={t('interview.backToDashboard')}
+                title={t('interview.backToDashboard')}
                 onClick={() => onNavigate('dashboard')}
               >
                 <Icon name="arrowLeft" />
               </button>
               <div>
-                <p>AI Interview</p>
+                <p>{t('interview.pageTitle')}</p>
                 <h2>{session.role}</h2>
               </div>
             </div>
 
             <div className="topbar-actions">
-              <button className="icon-button" type="button" aria-label="Notifications" title="Notifications">
+              <LanguageSwitcher compact />
+              <button className="icon-button" type="button" aria-label={t('common.notifications')} title={t('common.notifications')}>
                 <Icon name="bell" />
               </button>
-              <div className="user-chip" aria-label="Current user">
+              <div className="user-chip" aria-label={t('profile.pageSubtitle')}>
                 <span>{currentUser.fullName}</span>
-                <small>{currentUser.role}</small>
+                <small>{currentUser.role === 'admin' ? t('common.admin') : t('common.user')}</small>
                 <div className="avatar">{currentUser.initials}</div>
               </div>
             </div>
@@ -374,8 +384,23 @@ export default function Interview({
               <div className="video-card panel">
                 <div className="video-header">
                   <div>
-                    <span className="live-dot">Live mock interview</span>
-                    <h1>Interview for {session.role}</h1>
+                    <span className="live-dot">{t('interview.liveMock')}</span>
+                    <h1>{t('interview.interviewFor', { role: session.role })}</h1>
+                    <select
+                      className="role-select"
+                      value={preferredRole}
+                      onChange={(event) => {
+                        const nextRole = event.target.value
+                        setPreferredRole(nextRole)
+                        setPreferredInterviewRole(currentUser?.userId, nextRole)
+                        resetInterview(createInterviewSession(cvAnalysis, currentUser, nextRole))
+                      }}
+                    >
+                      <option value="Frontend Developer Intern">Frontend Developer Intern</option>
+                      <option value="Backend Developer Intern">Backend Developer Intern</option>
+                      <option value="Fullstack Developer Intern">Fullstack Developer Intern</option>
+                      <option value="Cloud/DevOps Intern">Cloud/DevOps Intern</option>
+                    </select>
                   </div>
                   <div className="question-progress" aria-label="Question progress">
                     <span>{questionIndex + 1}/{session.questions.length}</span>
@@ -390,30 +415,30 @@ export default function Interview({
                   {!cameraEnabled ? (
                     <div className="camera-placeholder">
                       <Icon name="videoOff" />
-                      <strong>Camera is off</strong>
-                      <span>Turn it on when you want a realistic interview room.</span>
+                      <strong>{t('interview.cameraOff')}</strong>
+                      <span>{t('interview.cameraOffHint')}</span>
                     </div>
                   ) : null}
                   <div className="ai-card">
                     <div className="ai-avatar"><Icon name="brain" /></div>
                     <div>
-                      <strong>AI Interviewer</strong>
-                      <span>{isAiThinking ? 'Reviewing your answer...' : 'Ready for your response'}</span>
+                      <strong>{t('interview.aiInterviewer')}</strong>
+                      <span>{isAiThinking ? t('interview.reviewing') : t('interview.readyResponse')}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="interview-controls" aria-label="Interview controls">
-                  <button className={`round-control ${cameraEnabled ? 'active' : ''}`} type="button" onClick={toggleCamera} title="Toggle camera">
+                  <button className={`round-control ${cameraEnabled ? 'active' : ''}`} type="button" onClick={toggleCamera} title={t('interview.toggleCamera')}>
                     <Icon name={cameraEnabled ? 'video' : 'videoOff'} />
                   </button>
-                  <button className={`round-control ${isRecording ? 'danger active' : ''}`} type="button" onClick={toggleRecording} title="Toggle microphone recording">
+                  <button className={`round-control ${isRecording ? 'danger active' : ''}`} type="button" onClick={toggleRecording} title={t('interview.toggleMic')}>
                     <Icon name={isRecording ? 'stop' : 'mic'} />
                   </button>
-                  <button className="round-control" type="button" onClick={handleSpeakQuestion} title="Read question aloud">
+                  <button className="round-control" type="button" onClick={handleSpeakQuestion} title={t('interview.readAloud')}>
                     <Icon name="volume" />
                   </button>
-                  <button className="round-control" type="button" onClick={() => onNavigate('dashboard')} title="Leave interview">
+                  <button className="round-control" type="button" onClick={() => onNavigate('dashboard')} title={t('interview.leaveInterview')}>
                     <Icon name="logout" />
                   </button>
                 </div>
@@ -425,7 +450,7 @@ export default function Interview({
               <div className="panel chat-panel">
                 <div className="panel-header">
                   <div>
-                    <h3>Conversation</h3>
+                    <h3>{t('interview.conversation')}</h3>
                     <p>{apiStatus}</p>
                   </div>
                 </div>
@@ -436,7 +461,7 @@ export default function Interview({
                   ))}
                   {isAiThinking ? (
                     <div className="message-bubble ai thinking">
-                      <span>AI is preparing feedback...</span>
+                      <span>{t('interview.aiPreparing')}</span>
                     </div>
                   ) : null}
                 </div>
@@ -452,13 +477,13 @@ export default function Interview({
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
-                    placeholder={isCompleted ? 'Interview completed. Start a new interview to answer again.' : 'Type your answer here. Press Enter to send, Shift + Enter for a new line.'}
+                    placeholder={isCompleted ? t('interview.placeholderDone') : t('interview.placeholderActive')}
                     rows="3"
                     disabled={isCompleted}
                   />
                   <button className="send-button" type="submit" disabled={!draft.trim() || isAiThinking || isCompleted}>
                     <Icon name="send" />
-                    Send
+                    {t('common.send')}
                   </button>
                 </form>
               </div>
@@ -476,12 +501,12 @@ export default function Interview({
               <aside className="panel question-card">
                 <div className="panel-header">
                   <div>
-                    <h3>Current Question</h3>
-                    <p>Use voice recording or chat to answer.</p>
+                    <h3>{t('interview.currentQuestion')}</h3>
+                    <p>{t('interview.currentQuestionDesc')}</p>
                   </div>
                   <button className="new-question-set-button" type="button" onClick={() => resetInterview()}>
                     <Icon name="shuffle" />
-                    {isCompleted ? 'New Interview' : 'New Set'}
+                    {isCompleted ? t('interview.newInterview') : t('interview.newSet')}
                   </button>
                 </div>
                 {isCompleted ? (
@@ -490,8 +515,8 @@ export default function Interview({
                   <>
                     <p className="question-text">{currentQuestion}</p>
                     <div className="answer-mode-grid">
-                      <ModeCard icon="mic" title="Voice Answer" text="Record now, mock transcript fills the chat box." active={isRecording} />
-                      <ModeCard icon="message" title="Chat Answer" text="Type your answer and send it to the AI interviewer." />
+                      <ModeCard icon="mic" title={t('interview.voiceAnswer')} text={t('interview.voiceAnswerDesc')} active={isRecording} />
+                      <ModeCard icon="message" title={t('interview.chatAnswer')} text={t('interview.chatAnswerDesc')} />
                     </div>
                   </>
                 )}
@@ -500,8 +525,8 @@ export default function Interview({
               <aside className="panel aws-panel">
                 <div className="panel-header">
                   <div>
-                    <h3>AWS Integration Later</h3>
-                    <p>Prepared service boundaries for the real backend.</p>
+                    <h3>{t('interview.awsIntegration')}</h3>
+                    <p>{t('interview.awsIntegrationDesc')}</p>
                   </div>
                 </div>
                 <div className="aws-step-list">
@@ -592,8 +617,10 @@ function ResultList({ title, items }) {
 }
 
 function InterviewSidebar({ currentPage, onNavigate, onLogout }) {
+  const { t } = useLanguage()
+
   return (
-    <aside className="sidebar" aria-label="Main navigation">
+    <aside className="sidebar" aria-label={t('common.mainMenu')}>
       <div className="brand">
         <div className="brand-mark"><Icon name="brain" /></div>
         <div>
@@ -603,7 +630,7 @@ function InterviewSidebar({ currentPage, onNavigate, onLogout }) {
       </div>
 
       <nav className="nav-menu">
-        <span className="nav-caption">Main Menu</span>
+        <span className="nav-caption">{t('common.mainMenu')}</span>
         {navItems.map((item) => (
           <button
             className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
@@ -616,20 +643,20 @@ function InterviewSidebar({ currentPage, onNavigate, onLogout }) {
           </button>
         ))}
 
-        <span className="nav-caption nav-caption-spaced">General</span>
+        <span className="nav-caption nav-caption-spaced">{t('common.general')}</span>
         <button className="nav-item" type="button" onClick={() => onNavigate('profile')}>
           <Icon name="user" />
-          <span>Profile</span>
+          <span>{t('nav.profile')}</span>
         </button>
         <button className="nav-item" type="button">
           <Icon name="settings" />
-          <span>Settings</span>
+          <span>{t('nav.settings')}</span>
         </button>
       </nav>
 
       <button className="logout-button" type="button" onClick={onLogout}>
         <Icon name="logout" />
-        Log Out
+        {t('common.logOut')}
       </button>
     </aside>
   )

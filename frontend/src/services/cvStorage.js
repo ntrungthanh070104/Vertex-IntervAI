@@ -7,22 +7,50 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]
 
-export function loadCvAnalysis() {
-  try {
-    const stored = window.localStorage.getItem(CV_STORAGE_KEY)
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
+function getStorage() {
+  return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null
 }
 
-export function saveCvAnalysis(analysis) {
-  window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(analysis))
+function getUserStorageKey(userId) {
+  return userId ? `${CV_STORAGE_KEY}.${userId}` : CV_STORAGE_KEY
+}
+
+export function loadCvAnalysis(userId) {
+  const storage = getStorage()
+
+  if (!storage) {
+    return null
+  }
+
+  for (const key of [getUserStorageKey(userId), CV_STORAGE_KEY]) {
+    try {
+      const stored = storage.getItem(key)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch {
+      // fallback to next key
+    }
+  }
+
+  return null
+}
+
+export function saveCvAnalysis(analysis, userId) {
+  const storage = getStorage()
+
+  if (!storage) {
+    return
+  }
+
+  const resolvedUserId = userId || analysis?.userId || 'default'
+  storage.setItem(getUserStorageKey(resolvedUserId), JSON.stringify(analysis))
+  storage.setItem(CV_STORAGE_KEY, JSON.stringify(analysis))
 }
 
 export function validateCvFile(file) {
   if (!file) {
-    return 'Please choose a CV file first.'
+    return 'NO_FILE'
   }
 
   const extension = getFileExtension(file.name)
@@ -30,11 +58,11 @@ export function validateCvFile(file) {
   const hasValidType = ALLOWED_TYPES.includes(file.type) || file.type === ''
 
   if (!hasValidExtension || !hasValidType) {
-    return 'Only PDF, DOC, or DOCX files are supported.'
+    return 'INVALID_FILE_TYPE'
   }
 
   if (file.size > MAX_CV_SIZE) {
-    return 'Maximum file size is 10 MB.'
+    return 'FILE_TOO_LARGE'
   }
 
   return ''

@@ -1,16 +1,72 @@
 const INTERVIEW_RESULT_KEY = 'talentGraph.interviewResult'
+const INTERVIEW_HISTORY_KEY = 'talentGraph.interviewHistory'
 
-export function loadInterviewResult() {
-  try {
-    const stored = window.localStorage.getItem(INTERVIEW_RESULT_KEY)
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
+function getStorage() {
+  return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null
 }
 
-export function saveInterviewResult(result) {
-  window.localStorage.setItem(INTERVIEW_RESULT_KEY, JSON.stringify(result))
+function getUserStorageKey(key, userId) {
+  return userId ? `${key}.${userId}` : key
+}
+
+export function loadInterviewResult(userId) {
+  const storage = getStorage()
+
+  if (!storage) {
+    return null
+  }
+
+  for (const key of [getUserStorageKey(INTERVIEW_RESULT_KEY, userId), INTERVIEW_RESULT_KEY]) {
+    try {
+      const stored = storage.getItem(key)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch {
+      // fallback to next key
+    }
+  }
+
+  return null
+}
+
+export function loadInterviewHistory(userId) {
+  const storage = getStorage()
+
+  if (!storage) {
+    return []
+  }
+
+  for (const key of [getUserStorageKey(INTERVIEW_HISTORY_KEY, userId), INTERVIEW_HISTORY_KEY]) {
+    try {
+      const stored = storage.getItem(key)
+      const parsed = stored ? JSON.parse(stored) : []
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    } catch {
+      // fallback to next key
+    }
+  }
+
+  return []
+}
+
+export function saveInterviewResult(result, userId) {
+  const storage = getStorage()
+
+  if (!storage) {
+    return
+  }
+
+  const resolvedUserId = userId || result?.userId || 'default'
+  const history = loadInterviewHistory(resolvedUserId)
+  const nextHistory = [result, ...history.filter((item) => item.interviewId !== result.interviewId)].slice(0, 10)
+
+  storage.setItem(getUserStorageKey(INTERVIEW_RESULT_KEY, resolvedUserId), JSON.stringify(result))
+  storage.setItem(getUserStorageKey(INTERVIEW_HISTORY_KEY, resolvedUserId), JSON.stringify(nextHistory))
+  storage.setItem(INTERVIEW_RESULT_KEY, JSON.stringify(result))
+  storage.setItem(INTERVIEW_HISTORY_KEY, JSON.stringify(nextHistory))
 }
 
 export function createInterviewResult({ session, currentUser, cvAnalysis, answers }) {

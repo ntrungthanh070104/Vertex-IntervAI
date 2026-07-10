@@ -5,9 +5,9 @@ const fallbackQuestions = [
   'Describe a difficult bug you solved and how you approached debugging it.',
 ]
 
-export function createInterviewSession(cvAnalysis) {
+export function createInterviewSession(cvAnalysis, currentUser, preferredRole) {
   const skills = getSkills(cvAnalysis)
-  const suggestedRole = cvAnalysis?.suggestedPosition ?? 'Frontend Developer Intern'
+  const suggestedRole = preferredRole || cvAnalysis?.suggestedPosition || (currentUser?.role === 'admin' ? 'Senior Software Engineer' : 'Frontend Developer Intern')
   const questionBank = createQuestionBank({ skills, suggestedRole, cvAnalysis })
   const questions = pickQuestionSet(questionBank, 6)
 
@@ -137,26 +137,36 @@ function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5)
 }
 
-export function createInitialMessages(session, currentUser) {
-  const candidateName = currentUser?.fullName ?? 'Candidate'
+export function createInitialMessages(session, currentUser, locale = 'en') {
+  const candidateName = currentUser?.fullName ?? (locale === 'vi' ? 'Ứng viên' : 'Candidate')
+  const greeting = locale === 'vi'
+    ? `Xin chào ${candidateName}. Tôi sẽ phỏng vấn bạn cho vị trí ${session.role}. ${session.questions[0]}`
+    : `Hello ${candidateName}. I will interview you for the ${session.role} position. ${session.questions[0]}`
 
   return [
     {
       id: createId(),
       sender: 'ai',
-      text: `Hello ${candidateName}. I will interview you for the ${session.role} position. ${session.questions[0]}`,
+      text: greeting,
       createdAt: new Date().toISOString(),
     },
   ]
 }
 
-export function createMockTranscript(questionIndex) {
-  const transcripts = [
-    'I am a student developer focusing on React, Python, and AWS. My strongest skill is building clear frontend interfaces and connecting them with backend APIs.',
-    'In my Talent Graph project, I used React to build the dashboard, upload CV screen, and interview workflow. I focused on component structure and user experience.',
-    'For API reliability, I would validate input, handle errors consistently, log failures, and design retries for external services.',
-    'Before deploying AWS features, I would check IAM permissions, environment variables, logs, and DynamoDB access patterns.',
-  ]
+export function createMockTranscript(questionIndex, locale = 'en') {
+  const transcripts = locale === 'vi'
+    ? [
+      'Tôi là một lập trình viên sinh viên tập trung vào React, Python và AWS. Kỹ năng mạnh nhất của tôi là xây dựng giao diện frontend rõ ràng và kết nối chúng với API backend.',
+      'Trong dự án Talent Graph của mình, tôi đã dùng React để xây dựng bảng điều khiển, màn hình tải CV và quy trình phỏng vấn. Tôi tập trung vào cấu trúc component và trải nghiệm người dùng.',
+      'Đối với độ tin cậy API, tôi sẽ kiểm tra đầu vào, xử lý lỗi nhất quán, ghi log lỗi và thiết kế retry cho các dịch vụ bên ngoài.',
+      'Trước khi triển khai tính năng AWS, tôi sẽ kiểm tra quyền IAM, biến môi trường, log và mẫu truy cập DynamoDB.',
+    ]
+    : [
+      'I am a student developer focusing on React, Python, and AWS. My strongest skill is building clear frontend interfaces and connecting them with backend APIs.',
+      'In my Talent Graph project, I used React to build the dashboard, upload CV screen, and interview workflow. I focused on component structure and user experience.',
+      'For API reliability, I would validate input, handle errors consistently, log failures, and design retries for external services.',
+      'Before deploying AWS features, I would check IAM permissions, environment variables, logs, and DynamoDB access patterns.',
+    ]
 
   return transcripts[questionIndex % transcripts.length]
 }

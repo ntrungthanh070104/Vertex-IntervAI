@@ -149,6 +149,39 @@
   font-size: 30px;
 }
 
+.login-mode-toggle {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: #f4f5f8;
+  border-radius: 999px;
+}
+
+.login-mode-toggle button {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  background: transparent;
+  color: #4b5563;
+}
+
+.login-mode-toggle button.active {
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.login-helper-text {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+}
+
 .login-field {
   display: grid;
   gap: 8px;
@@ -182,6 +215,17 @@
   color: #b42318;
   background: #fff1f0;
   border: 1px solid #ffd5d2;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.login-success {
+  margin: 0;
+  padding: 12px 14px;
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 800;

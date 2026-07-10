@@ -1,0 +1,43 @@
+.language-switcher {
+  display: inline-flex;
+  padding: 3px;
+  background: rgba(18, 22, 33, 0.06);
+  border: 1px solid rgba(18, 22, 33, 0.08);
+  border-radius: 999px;
+}
+
+.language-switcher button {
+  min-width: 42px;
+  padding: 6px 10px;
+  color: #5b6478;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.language-switcher button.active {
+  color: #ffffff;
+  background: #7c3aed;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.28);
+}
+
+.language-switcher.compact button {
+  min-width: 36px;
+  padding: 5px 8px;
+}
+
+.login-page .language-switcher {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+.login-page .login-shell {
+  position: relative;
+}

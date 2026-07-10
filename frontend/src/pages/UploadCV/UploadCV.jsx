@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx'
+import { useLanguage } from '../../i18n/LanguageContext.jsx'
 import {
   createMockCvAnalysis,
   formatFileSize,
@@ -10,18 +12,11 @@ import { analyzeCvOnAws, uploadCvToAws } from '../../services/cvApi.js'
 import './UploadCV.css'
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'upload-cv', label: 'Upload CV', icon: 'file' },
-  { id: 'interview', label: 'AI Interview', icon: 'mic' },
-  { id: 'result', label: 'Result', icon: 'chart' },
-  { id: 'history', label: 'History', icon: 'history' },
-]
-
-const uploadSteps = [
-  { label: 'Validate CV', description: 'Check file type and size' },
-  { label: 'Upload file', description: 'Send CV to API Gateway, Lambda, and S3' },
-  { label: 'Analyze CV', description: 'Read CV text and score it with AWS AI' },
-  { label: 'Save result', description: 'Store analysis in localStorage' },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: 'dashboard' },
+  { id: 'upload-cv', labelKey: 'nav.uploadCv', icon: 'file' },
+  { id: 'interview', labelKey: 'nav.aiInterview', icon: 'mic' },
+  { id: 'result', labelKey: 'nav.result', icon: 'chart' },
+  { id: 'history', labelKey: 'nav.history', icon: 'history' },
 ]
 
 const fallbackUser = {
@@ -31,6 +26,16 @@ const fallbackUser = {
   role: 'user',
 }
 
+function translateFileError(code, t) {
+  const map = {
+    NO_FILE: t('errors.noFile'),
+    INVALID_FILE_TYPE: t('errors.invalidFileType'),
+    FILE_TOO_LARGE: t('errors.fileTooLarge'),
+  }
+
+  return map[code] ?? code
+}
+
 export default function UploadCV({
   cvAnalysis,
   currentUser = fallbackUser,
@@ -38,6 +43,14 @@ export default function UploadCV({
   onLogout = () => {},
   onUploadComplete = () => {},
 }) {
+  const { t } = useLanguage()
+  const uploadSteps = useMemo(() => [
+    { label: t('upload.stepValidate'), description: t('upload.stepValidateDesc') },
+    { label: t('upload.stepUpload'), description: t('upload.stepUploadDesc') },
+    { label: t('upload.stepAnalyze'), description: t('upload.stepAnalyzeDesc') },
+    { label: t('upload.stepSave'), description: t('upload.stepSaveDesc') },
+  ], [t])
+
   const inputRef = useRef(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [error, setError] = useState('')
@@ -57,7 +70,7 @@ export default function UploadCV({
       setAnalysis(null)
       setProgress(0)
       setStatus('idle')
-      setError(issue)
+      setError(translateFileError(issue, t))
       return
     }
 
@@ -72,7 +85,7 @@ export default function UploadCV({
     const issue = validateCvFile(selectedFile)
 
     if (issue) {
-      setError(issue)
+      setError(translateFileError(issue, t))
       return
     }
 
@@ -90,13 +103,13 @@ export default function UploadCV({
 
       const analyzedCv = await analyzeCvOnAws(uploadedCv)
       const result = createDashboardAnalysis(selectedFile, analyzedCv, currentUser.userId)
-      saveCvAnalysis(result)
+      saveCvAnalysis(result, currentUser.userId)
       setAnalysis(result)
       setProgress(100)
       setStatus('done')
       onUploadComplete(result)
     } catch (uploadError) {
-      setError(uploadError.message || 'Upload or analyze CV failed. Please check your API Gateway and Lambda logs.')
+      setError(uploadError.message || t('errors.uploadFailed'))
       setProgress(0)
       setStatus('ready')
     }
@@ -105,7 +118,7 @@ export default function UploadCV({
   return (
     <div className="dashboard-page upload-page">
       <div className="dashboard-frame">
-        <UploadSidebar currentPage="upload-cv" onNavigate={onNavigate} onLogout={onLogout} />
+        <UploadSidebar currentPage="upload-cv" onNavigate={onNavigate} onLogout={onLogout} t={t} />
 
         <main className="dashboard-main">
           <header className="topbar">
@@ -113,25 +126,26 @@ export default function UploadCV({
               <button
                 className="icon-button"
                 type="button"
-                aria-label="Back to dashboard"
-                title="Back to dashboard"
+                aria-label={t('upload.backToDashboard')}
+                title={t('upload.backToDashboard')}
                 onClick={() => onNavigate('dashboard')}
               >
                 <Icon name="arrowLeft" />
               </button>
               <div>
-                <p>Upload CV</p>
-                <h2>CV Analysis Intake</h2>
+                <p>{t('upload.pageTitle')}</p>
+                <h2>{t('upload.pageSubtitle')}</h2>
               </div>
             </div>
 
             <div className="topbar-actions">
-              <button className="icon-button" type="button" aria-label="Notifications" title="Notifications">
+              <LanguageSwitcher compact />
+              <button className="icon-button" type="button" aria-label={t('common.notifications')} title={t('common.notifications')}>
                 <Icon name="bell" />
               </button>
-              <div className="user-chip" aria-label="Current user">
+              <div className="user-chip" aria-label={t('profile.pageSubtitle')}>
                 <span>{currentUser.fullName}</span>
-                <small>{currentUser.role}</small>
+                <small>{currentUser.role === 'admin' ? t('common.admin') : t('common.user')}</small>
                 <div className="avatar">{currentUser.initials}</div>
               </div>
             </div>
@@ -140,16 +154,13 @@ export default function UploadCV({
           <div className="dashboard-content upload-content">
             <section className="upload-hero panel">
               <div>
-                <p className="eyebrow">CV Upload</p>
-                <h1>Upload your CV for AI skill analysis</h1>
-                <p>
-                  This screen uploads your CV to the AWS Lambda endpoint, stores the file in
-                  S3, and keeps a demo AI analysis result until Bedrock is connected.
-                </p>
+                <p className="eyebrow">{t('upload.eyebrow')}</p>
+                <h1>{t('upload.title')}</h1>
+                <p>{t('upload.description')}</p>
               </div>
               <button className="primary-action upload-hero-action" type="button" onClick={() => inputRef.current?.click()}>
                 <Icon name="upload" />
-                Choose CV
+                {t('upload.chooseCv')}
               </button>
             </section>
 
@@ -181,28 +192,28 @@ export default function UploadCV({
                   />
 
                   <div className="dropzone-icon"><Icon name="upload" /></div>
-                  <h3>{selectedFile ? selectedFile.name : 'Drop your CV here'}</h3>
+                  <h3>{selectedFile ? selectedFile.name : t('upload.dropHere')}</h3>
                   <p>
                     {selectedFile
-                      ? `${formatFileSize(selectedFile.size)} selected and ready to upload.`
-                      : 'Supported formats: PDF, DOC, DOCX. Maximum file size: 10 MB.'}
+                      ? t('upload.fileSelected', { size: formatFileSize(selectedFile.size) })
+                      : t('upload.supportedFormats')}
                   </p>
 
                   <div className="dropzone-actions">
                     <button className="secondary-upload-action" type="button" onClick={() => inputRef.current?.click()} disabled={isWorking}>
-                      Browse File
+                      {t('upload.browseFile')}
                     </button>
                     <button className="primary-upload-action" type="button" onClick={handleUpload} disabled={!selectedFile || isWorking}>
-                      {isWorking ? 'Processing...' : 'Upload & Analyze'}
+                      {isWorking ? t('common.processing') : t('upload.uploadAnalyze')}
                     </button>
                   </div>
                 </div>
 
                 {error ? <p className="upload-error">{error}</p> : null}
 
-                <div className="upload-progress" aria-label="Upload progress">
+                <div className="upload-progress" aria-label={t('upload.uploadFlow')}>
                   <div className="progress-meta">
-                    <span>{getStatusLabel(status)}</span>
+                    <span>{getStatusLabel(status, t)}</span>
                     <strong>{progress}%</strong>
                   </div>
                   <div className="progress-track">
@@ -214,8 +225,8 @@ export default function UploadCV({
               <aside className="panel upload-steps-card">
                 <div className="panel-header">
                   <div>
-                    <h3>Upload Flow</h3>
-                    <p>Matches the planned AWS serverless pipeline.</p>
+                    <h3>{t('upload.uploadFlow')}</h3>
+                    <p>{t('upload.uploadFlowDesc')}</p>
                   </div>
                 </div>
 
@@ -237,35 +248,35 @@ export default function UploadCV({
               <section className="panel analysis-preview">
                 <div className="panel-header">
                   <div>
-                    <h3>CV Analysis Result</h3>
-                    <p>Latest parsed profile from the upload flow.</p>
+                    <h3>{t('upload.analysisResult')}</h3>
+                    <p>{t('upload.analysisResultDesc')}</p>
                   </div>
                   <div className="analysis-actions">
                     <button className="secondary-upload-action" type="button" onClick={() => onNavigate('dashboard')}>
-                      View Dashboard
+                      {t('upload.viewDashboard')}
                     </button>
                     <button className="primary-upload-action" type="button" onClick={() => onNavigate('interview')}>
                       <Icon name="mic" />
-                      Start AI Interview
+                      {t('upload.startAiInterview')}
                     </button>
                   </div>
                 </div>
 
                 <div className="analysis-grid">
-                  <AnalysisMetric label="CV Score" value={`${latestAnalysis.cvScore}/100`} />
-                  <AnalysisMetric label="Suggested Role" value={latestAnalysis.suggestedPosition} />
-                  <AnalysisMetric label="Uploaded" value={formatUploadDate(latestAnalysis.uploadedAt)} />
-                  <AnalysisMetric label="File Size" value={formatFileSize(latestAnalysis.fileSize)} />
+                  <AnalysisMetric label={t('dashboard.cvScore')} value={`${latestAnalysis.cvScore}/100`} />
+                  <AnalysisMetric label={t('upload.suggestedRole')} value={latestAnalysis.suggestedPosition} />
+                  <AnalysisMetric label={t('upload.uploaded')} value={formatUploadDate(latestAnalysis.uploadedAt)} />
+                  <AnalysisMetric label={t('upload.fileSize')} value={formatFileSize(latestAnalysis.fileSize)} />
                 </div>
 
                 <div className="analysis-sections">
-                  <ResultBlock title="Extracted Skills" items={latestAnalysis.skills} />
-                  <ResultBlock title="Projects" items={latestAnalysis.projects} />
-                  <ResultBlock title="Experience" items={latestAnalysis.experience} />
-                  <ResultBlock title="Certificates" items={latestAnalysis.certificates} />
+                  <ResultBlock title={t('upload.extractedSkills')} items={latestAnalysis.skills} />
+                  <ResultBlock title={t('upload.projects')} items={latestAnalysis.projects} />
+                  <ResultBlock title={t('upload.experience')} items={latestAnalysis.experience} />
+                  <ResultBlock title={t('upload.certificates')} items={latestAnalysis.certificates} />
                 </div>
 
-                <InterviewPreparation analysis={latestAnalysis} />
+                <InterviewPreparation analysis={latestAnalysis} t={t} />
               </section>
             ) : null}
           </div>
@@ -275,19 +286,19 @@ export default function UploadCV({
   )
 }
 
-function UploadSidebar({ currentPage, onNavigate, onLogout }) {
+function UploadSidebar({ currentPage, onNavigate, onLogout, t }) {
   return (
-    <aside className="sidebar" aria-label="Main navigation">
+    <aside className="sidebar" aria-label={t('common.mainMenu')}>
       <div className="brand">
         <div className="brand-mark"><Icon name="brain" /></div>
         <div>
           <strong>Vertex-IntervAI</strong>
-          <span>InterviewAI</span>
+          <span>{t('common.brandSubtitleAlt')}</span>
         </div>
       </div>
 
       <nav className="nav-menu">
-        <span className="nav-caption">Main Menu</span>
+        <span className="nav-caption">{t('common.mainMenu')}</span>
         {navItems.map((item) => (
           <button
             className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
@@ -296,28 +307,28 @@ function UploadSidebar({ currentPage, onNavigate, onLogout }) {
             onClick={() => onNavigate(item.id)}
           >
             <Icon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </button>
         ))}
 
-        <span className="nav-caption nav-caption-spaced">General</span>
+        <span className="nav-caption nav-caption-spaced">{t('common.general')}</span>
         <button
           className={`nav-item ${currentPage === 'profile' ? 'active' : ''}`}
           type="button"
           onClick={() => onNavigate('profile')}
         >
           <Icon name="user" />
-          <span>Profile</span>
+          <span>{t('nav.profile')}</span>
         </button>
         <button className="nav-item" type="button">
           <Icon name="settings" />
-          <span>Settings</span>
+          <span>{t('nav.settings')}</span>
         </button>
       </nav>
 
       <button className="logout-button" type="button" onClick={onLogout}>
         <Icon name="logout" />
-        Log Out
+        {t('common.logOut')}
       </button>
     </aside>
   )
@@ -345,27 +356,24 @@ function ResultBlock({ title, items }) {
   )
 }
 
-function InterviewPreparation({ analysis }) {
+function InterviewPreparation({ analysis, t }) {
   const skills = analysis.skills?.slice(0, 5) ?? []
 
   return (
-    <section className="interview-prep" aria-label="Interview preparation">
+    <section className="interview-prep" aria-label={t('upload.interviewPrep')}>
       <div className="prep-copy">
         <span className="prep-icon"><Icon name="brain" /></span>
         <div>
-          <h4>Interview Preparation</h4>
-          <p>
-            The next interview will use this CV score, suggested role, and extracted skills to
-            create focused mock questions.
-          </p>
+          <h4>{t('upload.interviewPrep')}</h4>
+          <p>{t('upload.interviewPrepDesc')}</p>
         </div>
       </div>
 
       <div className="prep-grid">
-        <PrepItem label="Suggested Role" value={analysis.suggestedPosition} />
-        <PrepItem label="Interview Level" value={getInterviewLevel(analysis.cvScore)} />
-        <PrepItem label="Estimated Questions" value="5 questions" />
-        <PrepItem label="Main Skills" value={skills.join(', ') || 'React, Python, AWS'} />
+        <PrepItem label={t('upload.suggestedRole')} value={analysis.suggestedPosition} />
+        <PrepItem label={t('upload.interviewLevel')} value={getInterviewLevel(analysis.cvScore, t)} />
+        <PrepItem label={t('upload.estimatedQuestions')} value={t('upload.questionsCount')} />
+        <PrepItem label={t('upload.mainSkills')} value={skills.join(', ') || 'React, Python, AWS'} />
       </div>
     </section>
   )
@@ -380,13 +388,13 @@ function PrepItem({ label, value }) {
   )
 }
 
-function getStatusLabel(status) {
+function getStatusLabel(status, t) {
   const labels = {
-    idle: 'Waiting for file',
-    ready: 'Ready to upload',
-    uploading: 'Uploading CV to AWS',
-    analyzing: 'Analyzing CV with AWS AI',
-    done: 'Analysis complete',
+    idle: t('upload.statusIdle'),
+    ready: t('upload.statusReady'),
+    uploading: t('upload.statusUploading'),
+    analyzing: t('upload.statusAnalyzing'),
+    done: t('upload.statusDone'),
   }
 
   return labels[status] ?? labels.idle
@@ -400,10 +408,10 @@ function getStepState(status, index) {
   return ''
 }
 
-function getInterviewLevel(score) {
-  if (score >= 85) return 'Strong candidate'
-  if (score >= 70) return 'Ready for mock interview'
-  return 'Foundation review'
+function getInterviewLevel(score, t) {
+  if (score >= 85) return t('upload.levelStrong')
+  if (score >= 70) return t('upload.levelReady')
+  return t('upload.levelFoundation')
 }
 
 function createDashboardAnalysis(file, uploadedCv, userId) {
